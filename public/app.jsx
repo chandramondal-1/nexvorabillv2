@@ -16,6 +16,7 @@ const INITIAL_SETTINGS = {
   signatureText: 'Arif Hussain and Surya Mondal\nFounder, Nexvora'
 };
 
+const AppProvider = ({ children }) => {
   const [invoices, setInvoices] = useState([]);
   const [clients, setClients] = useState([]);
   const [settings, setSettings] = useState(INITIAL_SETTINGS);
