@@ -593,27 +593,56 @@ const CreateInvoice = () => {
        link.click();
    };
 
-   const handleEmail = () => {
-       const subject = encodeURIComponent(`Invoice ${invoice.invoiceNo} from ${settings.companyName}`);
-       const body = encodeURIComponent(
-`Dear ${invoice.clientName || 'Client'},
-
-Please find the details for invoice ${invoice.invoiceNo} below:
-
-Total Amount: ₹${invoice.total.toFixed(2)}
-Balance Due: ₹${invoice.balanceDue.toFixed(2)}
-Due Date: ${invoice.dueDate}
-
-You can download the complete invoice document from our system or request a PDF copy.
-
-Thank you for your business!
-
-Best regards,
-${settings.companyName}
-${settings.phone} | ${settings.email}`
-       );
+   const handleEmail = async () => {
+       if (!invoice.clientEmail) {
+           return alert("Please enter a client email address first.");
+       }
        
-       window.location.href = `mailto:${invoice.clientEmail || ''}?subject=${subject}&body=${body}`;
+       const btn = document.getElementById('email-btn');
+       if(btn) btn.innerHTML = '<i data-lucide="loader"></i> Sending...';
+       
+       try {
+           const content = printRef.current;
+           const opt = {
+              margin: 0,
+              filename: `${invoice.invoiceNo}.pdf`,
+              image: { type: 'jpeg', quality: 0.98 },
+              html2canvas: { scale: 3, useCORS: true },
+              jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+           };
+           
+           const pdfBase64 = await html2pdf().set(opt).from(content).outputPdf('datauristring');
+           
+           const subject = `Invoice ${invoice.invoiceNo} from ${settings.companyName}`;
+           const text = `Dear ${invoice.clientName || 'Client'},\n\nPlease find the details for invoice ${invoice.invoiceNo} attached as a PDF.\n\nTotal Amount: ₹${invoice.total.toFixed(2)}\nBalance Due: ₹${invoice.balanceDue.toFixed(2)}\nDue Date: ${invoice.dueDate}\n\nThank you for your business!\n\nBest regards,\n${settings.companyName}\n${settings.phone} | ${settings.email}`;
+           
+           const res = await fetch('/api/send-email', {
+               method: 'POST',
+               headers: { 'Content-Type': 'application/json' },
+               body: JSON.stringify({
+                   to: invoice.clientEmail,
+                   subject,
+                   text,
+                   pdfBase64,
+                   filename: `${invoice.invoiceNo}.pdf`
+               })
+           });
+           
+           const result = await res.json();
+           if(res.ok) {
+               alert("Email sent successfully!");
+           } else {
+               alert("Failed to send email: " + (result.error || "Unknown error"));
+           }
+       } catch (err) {
+           console.error("Email generation/sending error:", err);
+           alert("Something went wrong while sending the email.");
+       } finally {
+           if(btn) {
+               btn.innerHTML = '<i data-lucide="mail"></i> Email';
+               if(window.lucide) window.lucide.createIcons();
+           }
+       }
    };
 
    return (

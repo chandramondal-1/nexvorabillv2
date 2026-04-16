@@ -155,6 +155,48 @@ app.put('/api/settings', async (req, res) => {
     }
 });
 
+const nodemailer = require('nodemailer');
+
+app.post('/api/send-email', async (req, res) => {
+    const { to, subject, text, pdfBase64, filename } = req.body;
+    
+    if(!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+        return res.status(500).json({ error: 'SMTP credentials not configured on the server. Please add SMTP_USER and SMTP_PASS to .env' });
+    }
+
+    try {
+        const transporter = nodemailer.createTransport({
+            host: process.env.SMTP_HOST || 'smtp.gmail.com',
+            port: process.env.SMTP_PORT || 587,
+            secure: process.env.SMTP_PORT == 465,
+            auth: {
+                user: process.env.SMTP_USER,
+                pass: process.env.SMTP_PASS
+            }
+        });
+
+        const mailOptions = {
+            from: process.env.SMTP_FROM || process.env.SMTP_USER,
+            to,
+            subject,
+            text,
+            attachments: [
+                {
+                    filename: filename || 'invoice.pdf',
+                    content: pdfBase64.split('base64,')[1] || pdfBase64,
+                    encoding: 'base64'
+                }
+            ]
+        };
+
+        const info = await transporter.sendMail(mailOptions);
+        res.json({ success: true, messageId: info.messageId });
+    } catch (error) {
+        console.error("Email sending error:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Start the server
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
