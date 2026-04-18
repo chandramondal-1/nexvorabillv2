@@ -45,28 +45,43 @@ if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY") {
 }
 
 const AppProvider = ({ children }) => {
-  // --- ROBUST INITIALIZATION ---
-  // We initialize from localStorage IMMEDIATELY to prevent "vanishing" state on refresh
+  // --- CRITICAL INDEPENDENT INITIALIZATION ---
+  // In React 18, we must ensure these don't depend on each other during the first pass.
+  
+  // 1. Get User First
   const [user, setUser] = useState(() => {
     try {
       const saved = localStorage.getItem('nex_user');
-      return saved ? JSON.parse(saved) : null;
+      const parsed = saved ? JSON.parse(saved) : null;
+      console.log("INIT: User loaded from memory:", parsed?.uid || "none");
+      return parsed;
     } catch (e) { return null; }
   });
 
+  // 2. Load Data using a direct check to localStorage (NOT the 'user' variable yet)
   const [invoices, setInvoices] = useState(() => {
-    if (!user) return [];
     try {
-      const saved = localStorage.getItem(`nex_backup_inv_${user.uid}`);
-      return saved ? JSON.parse(saved) : [];
+      const savedUser = localStorage.getItem('nex_user');
+      const parsedUser = savedUser ? JSON.parse(savedUser) : null;
+      if (!parsedUser) return [];
+      
+      const saved = localStorage.getItem(`nex_backup_inv_${parsedUser.uid}`);
+      const data = saved ? JSON.parse(saved) : [];
+      console.log(`INIT: Found ${data.length} invoices for ${parsedUser.uid}`);
+      return data;
     } catch (e) { return []; }
   });
 
   const [clients, setClients] = useState(() => {
-    if (!user) return [];
     try {
-      const saved = localStorage.getItem(`nex_backup_cli_${user.uid}`);
-      return saved ? JSON.parse(saved) : [];
+      const savedUser = localStorage.getItem('nex_user');
+      const parsedUser = savedUser ? JSON.parse(savedUser) : null;
+      if (!parsedUser) return [];
+      
+      const saved = localStorage.getItem(`nex_backup_cli_${parsedUser.uid}`);
+      const data = saved ? JSON.parse(saved) : [];
+      console.log(`INIT: Found ${data.length} clients for ${parsedUser.uid}`);
+      return data;
     } catch (e) { return []; }
   });
 
@@ -77,10 +92,36 @@ const AppProvider = ({ children }) => {
   const [dbConnected, setDbConnected] = useState(true);
   const [serverStatus, setServerStatus] = useState('online');
 
+  // --- RECOVERY BRIDGE ---
+  // If the user logs in LATER (e.g. Firebase delay), we trigger a re-load from their specific local key
+  useEffect(() => {
+    if (user && user.uid) {
+        console.log("RECOVERY: User UID identified, checking for local data match...");
+        const localInv = localStorage.getItem(`nex_backup_inv_${user.uid}`);
+        const localCli = localStorage.getItem(`nex_backup_cli_${user.uid}`);
+        
+        if (localInv) {
+            const parsed = JSON.parse(localInv);
+            if (parsed.length > 0 && invoices.length === 0) {
+               console.log("RECOVERY: Re-connected lost invoices from browser memory!");
+               setInvoices(parsed);
+            }
+        }
+        if (localCli) {
+            const parsed = JSON.parse(localCli);
+            if (parsed.length > 0 && clients.length === 0) {
+               console.log("RECOVERY: Re-connected lost clients from browser memory!");
+               setClients(parsed);
+            }
+        }
+    }
+  }, [user]);
+
   // Monitor Auth State
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((fbUser) => {
       if (fbUser) {
+        console.log("AUTH: Firebase user detected:", fbUser.uid);
         setUser(fbUser);
       } else {
         const localUser = localStorage.getItem('nex_user');
@@ -92,7 +133,6 @@ const AppProvider = ({ children }) => {
   }, []);
 
   // --- AUTO-SAVE TO LOCAL STORAGE ---
-  // This ensures state and localStorage are ALWAYS in sync instantly
   useEffect(() => {
     if (user && user.uid) {
       localStorage.setItem(`nex_backup_inv_${user.uid}`, JSON.stringify(invoices));
@@ -131,8 +171,6 @@ const AppProvider = ({ children }) => {
         return;
       }
       
-      // We already loaded from localStorage in useState initialization
-      // Now we just fetch and MERGE cloud data if available
       try {
         let headers = {};
         if (user.token) {
@@ -151,12 +189,14 @@ const AppProvider = ({ children }) => {
         if (invRes.ok) {
             const cloudInv = await invRes.json();
             if (cloudInv && cloudInv.length > 0) {
-               setInvoices(cloudInv); // Cloud is truth if available
+               console.log("CLOUD: Syncing invoices...");
+               setInvoices(cloudInv);
             }
         }
         if (cliRes.ok) {
             const cloudCli = await cliRes.json();
             if (cloudCli && cloudCli.length > 0) {
+               console.log("CLOUD: Syncing clients...");
                setClients(cloudCli);
             }
         }
@@ -167,7 +207,7 @@ const AppProvider = ({ children }) => {
            }
         }
       } catch (e) {
-        console.error("Cloud fetch failed, staying with local data.", e);
+        console.error("CLOUD: Fetch failed, staying with local data.", e);
       } finally {
         setLoading(false);
       }
