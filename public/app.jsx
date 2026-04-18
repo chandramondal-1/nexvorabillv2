@@ -1041,6 +1041,25 @@ const SettingsView = () => {
                </div>
             </Card>
 
+            <Card>
+                <div className="flex-row justify-between mb-4">
+                    <h3>Email Service</h3>
+                    <span className="badge badge-paid">SMTP V1.0</span>
+                </div>
+                <p className="text-secondary mb-4" style={{ fontSize: '0.85rem' }}>Verify your SMTP connection for automated invoice delivery.</p>
+                <Button variant="secondary" className="w-full" onClick={async (e) => {
+                    const originalText = e.target.innerHTML;
+                    e.target.innerHTML = "Verifying...";
+                    try {
+                        const res = await fetch('/api/verify-smtp', { method: 'POST' });
+                        const data = await res.json();
+                        if (res.ok) alert("✅ Connection Success: " + data.message);
+                        else alert("❌ Connection Failed: " + data.error);
+                    } catch (err) { alert("❌ Setup Error: " + err.message); }
+                    finally { e.target.innerHTML = originalText; }
+                }}>Test Connection</Button>
+            </Card>
+
             <Card style={{ border: '1px solid var(--danger)', background: 'var(--danger-bg)' }}>
                 <h3 className="mb-4" style={{ color: 'var(--danger)' }}>System Reset (Danger Zone)</h3>
                 <p style={{ fontSize: '0.9rem', marginBottom: '16px' }}>Permanently wipe all database history for a complete fresh start.</p>
@@ -1319,7 +1338,7 @@ const CreateInvoice = () => {
            const pdfBase64 = await html2pdf().set(opt).from(content).outputPdf('datauristring');
            
            const subject = `Invoice ${invoice.invoiceNo} from ${settings.companyName}`;
-           const text = `Dear ${invoice.clientName || 'Client'},\n\nPlease find the details for invoice ${invoice.invoiceNo} attached as a PDF.\n\nTotal Amount: ₹${invoice.total.toFixed(2)}\nBalance Due: ₹${invoice.balanceDue.toFixed(2)}\nDue Date: ${invoice.dueDate}\n\nThank you for your business!\n\nBest regards,\n${settings.companyName}\n${settings.phone} | ${settings.email}`;
+           const text = `Dear ${invoice.clientName || 'Valued Client'},\n\nWe hope you are having a productive day.\n\nPlease find officially attached Invoice #${invoice.invoiceNo} for your perusal. Below are the summary details:\n\n- Amount Due: ₹${invoice.total.toLocaleString()}\n- Due Date: ${invoice.dueDate}\n\nYou can download the attached PDF for a full breakdown of services. If you have any questions, please feel free to reach out to us at ${settings.phone}.\n\nThank you for choosing ${settings.companyName}.\n\nBest Regards,\nOperations Team - ${settings.companyName}\n${settings.website}`;
            
                let headers = { 'Content-Type': 'application/json' };
                if (user) {
@@ -1370,7 +1389,7 @@ const CreateInvoice = () => {
                      <Button variant="secondary" onClick={handleSave}>Save Draft</Button>
                      <Button variant="primary" onClick={handlePrint}><i data-lucide="file-text"></i> PDF</Button>
                      <Button variant="primary" onClick={handleDownloadImage}><i data-lucide="image"></i> Image</Button>
-                     <Button variant="primary" onClick={handleEmail}><i data-lucide="mail"></i> Email</Button>
+                     <Button variant="primary" id="email-btn" onClick={handleEmail}><i data-lucide="mail"></i> Email</Button>
                   </div>
                </div>
 

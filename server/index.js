@@ -184,6 +184,30 @@ app.put('/api/settings', authenticate, async (req, res) => {
 
 const nodemailer = require('nodemailer');
 
+app.post('/api/verify-smtp', async (req, res) => {
+    if(!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+        return res.status(400).json({ error: 'SMTP credentials missing in Render environment variables.' });
+    }
+
+    try {
+        const transporter = nodemailer.createTransport({
+            host: process.env.SMTP_HOST || 'smtp.gmail.com',
+            port: process.env.SMTP_PORT || 587,
+            secure: process.env.SMTP_PORT == 465,
+            auth: {
+                user: process.env.SMTP_USER,
+                pass: process.env.SMTP_PASS
+            }
+        });
+
+        await transporter.verify();
+        res.json({ success: true, message: 'SMTP Connection Successful' });
+    } catch (error) {
+        console.error("SMTP Verify error:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 app.post('/api/send-email', async (req, res) => {
     const { to, subject, text, pdfBase64, filename } = req.body;
     
