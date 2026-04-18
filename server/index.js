@@ -3,6 +3,7 @@ const cors = require('cors');
 const path = require('path');
 const mongoose = require('mongoose');
 const admin = require('firebase-admin');
+const jwt = require('jsonwebtoken');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 // Initialize Firebase Admin
@@ -56,7 +57,8 @@ const InvoiceSchema = new mongoose.Schema({
     advance: Number,
     subtotal: Number,
     total: Number,
-    balanceDue: Number
+    balanceDue: Number,
+    userId: { type: String, required: true, index: true }
 }, { timestamps: true });
 
 const ClientSchema = new mongoose.Schema({
@@ -67,7 +69,8 @@ const ClientSchema = new mongoose.Schema({
     phone: String,
     address: String,
     isRecurring: { type: Boolean, default: false },
-    recurringAmount: { type: Number, default: 500 }
+    recurringAmount: { type: Number, default: 500 },
+    userId: { type: String, required: true, index: true }
 }, { timestamps: true });
 
 const SettingsSchema = new mongoose.Schema({
@@ -83,7 +86,8 @@ const SettingsSchema = new mongoose.Schema({
     logoUrl: String,
     signatureText: String,
     paymentTermsDays: { type: Number, default: 7 },
-    serviceTemplates: { type: Array, default: [] }
+    serviceTemplates: { type: Array, default: [] },
+    userId: { type: String, required: true, index: true }
 }, { timestamps: true });
 
 const Invoice = mongoose.model('Invoice', InvoiceSchema);
@@ -94,21 +98,30 @@ const Settings = mongoose.model('Settings', SettingsSchema);
 
 const authenticate = async (req, res, next) => {
     const authHeader = req.headers.authorization;
-    if (!process.env.FIREBASE_PROJECT_ID) {
-        return next(); // Bypass if not configured
-    }
-
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
         return res.status(401).json({ error: 'Unauthorized: No token provided' });
     }
 
-    const idToken = authHeader.split('Bearer ')[1];
+    const token = authHeader.split('Bearer ')[1];
+    
+    // 1. Try Firebase Auth first
+    if (process.env.FIREBASE_PROJECT_ID) {
+        try {
+            const decodedToken = await admin.auth().verifyIdToken(token);
+            req.user = decodedToken;
+            return next();
+        } catch (error) {
+            // If Firebase fails, we fall through to try JWT
+        }
+    }
+
+    // 2. Try JWT for Local Admin
     try {
-        const decodedToken = await admin.auth().verifyIdToken(idToken);
-        req.user = decodedToken;
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'nexvora_fallback_secret');
+        req.user = decoded;
         next();
     } catch (error) {
-        console.error('Error verifying Firebase ID token:', error);
+        console.error('Authentication Error:', error.message);
         res.status(401).json({ error: 'Unauthorized: Invalid token' });
     }
 };
@@ -121,10 +134,9 @@ app.post('/api/login', (req, res) => {
     const adminPass = process.env.ADMIN_PASS || '123456789';
 
     if (username === adminUser && password === adminPass) {
-        return res.json({ 
-            success: true, 
-            user: { email: adminUser, uid: 'admin-' + adminUser.toLowerCase(), isLocal: true } 
-        });
+        const user = { email: adminUser, uid: 'admin-' + adminUser.toLowerCase(), isLocal: true };
+        const token = jwt.sign(user, process.env.JWT_SECRET || 'nexvora_fallback_secret', { expiresIn: '7d' });
+        return res.json({ success: true, user, token });
     }
     
     res.status(401).json({ error: 'Invalid credentials' });
@@ -134,7 +146,7 @@ app.post('/api/login', (req, res) => {
 app.get('/api/invoices', authenticate, async (req, res) => {
     if(!MONGODB_URI) return res.json([]);
     try {
-        const invoices = await Invoice.find().sort({ createdAt: -1 });
+        const invoices = await Invoice.find({ userId: req.user.uid }).sort({ createdAt: -1 });
         res.json(invoices);
     } catch (e) {
         res.status(500).json({ error: e.message });
@@ -143,11 +155,11 @@ app.get('/api/invoices', authenticate, async (req, res) => {
 
 app.post('/api/invoices', authenticate, async (req, res) => {
     if(!MONGODB_URI) return res.json({ success: true, invoice: req.body });
-    const newInvoice = req.body;
+    const newInvoice = { ...req.body, userId: req.user.uid };
     
     try {
         await Invoice.findOneAndUpdate(
-            { id: newInvoice.id },
+            { id: newInvoice.id, userId: req.user.uid },
             newInvoice,
             { upsert: true, new: true }
         );
@@ -161,7 +173,7 @@ app.post('/api/invoices', authenticate, async (req, res) => {
 app.get('/api/clients', authenticate, async (req, res) => {
     if(!MONGODB_URI) return res.json([]);
     try {
-        const clients = await Client.find().sort({ createdAt: -1 });
+        const clients = await Client.find({ userId: req.user.uid }).sort({ createdAt: -1 });
         res.json(clients);
     } catch (e) {
         res.status(500).json({ error: e.message });
@@ -170,10 +182,10 @@ app.get('/api/clients', authenticate, async (req, res) => {
 
 app.post('/api/clients', authenticate, async (req, res) => {
     if(!MONGODB_URI) return res.json({ success: true, client: req.body });
-    const newClient = req.body;
+    const newClient = { ...req.body, userId: req.user.uid };
     try {
         await Client.findOneAndUpdate(
-            { id: newClient.id },
+            { id: newClient.id, userId: req.user.uid },
             newClient,
             { upsert: true, new: true }
         );
@@ -187,7 +199,7 @@ app.post('/api/clients', authenticate, async (req, res) => {
 app.get('/api/settings', authenticate, async (req, res) => {
     if(!MONGODB_URI) return res.json({});
     try {
-        const settings = await Settings.findOne({ singletonId: 'default' });
+        const settings = await Settings.findOne({ singletonId: 'default', userId: req.user.uid });
         res.json(settings || {});
     } catch (e) {
         res.status(500).json({ error: e.message });
@@ -198,8 +210,8 @@ app.put('/api/settings', authenticate, async (req, res) => {
     if(!MONGODB_URI) return res.json({ success: true, settings: req.body });
     try {
         const settings = await Settings.findOneAndUpdate(
-            { singletonId: 'default' },
-            req.body,
+            { singletonId: 'default', userId: req.user.uid },
+            { ...req.body, userId: req.user.uid },
             { upsert: true, new: true }
         );
         res.json({ success: true, settings });
