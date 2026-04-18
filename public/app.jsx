@@ -69,10 +69,16 @@ const AppProvider = ({ children }) => {
   // Load from API on mount
   useEffect(() => {
     const fetchData = async () => {
-      if (!user) return;
+      if (!user) {
+        setLoading(false);
+        return;
+      }
       try {
-        const idToken = await user.getIdToken();
-        const headers = { 'Authorization': `Bearer ${idToken}` };
+        let headers = {};
+        if (user && !user.isLocal) {
+          const idToken = await user.getIdToken();
+          headers['Authorization'] = `Bearer ${idToken}`;
+        }
         
         const [invRes, cliRes, setRes] = await Promise.all([
           fetch('/api/invoices', { headers }),
@@ -109,13 +115,14 @@ const AppProvider = ({ children }) => {
 
   const saveInvoice = async (invoiceObj) => {
     try {
-      const idToken = await user.getIdToken();
+      let headers = { 'Content-Type': 'application/json' };
+      if (user && !user.isLocal) {
+        const idToken = await user.getIdToken();
+        headers['Authorization'] = `Bearer ${idToken}`;
+      }
       await fetch('/api/invoices', {
         method: 'POST',
-        headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${idToken}`
-        },
+        headers,
         body: JSON.stringify(invoiceObj)
       });
       setInvoices(prev => {
@@ -132,13 +139,14 @@ const AppProvider = ({ children }) => {
 
   const saveClient = async (clientObj) => {
     try {
-      const idToken = await user.getIdToken();
+      let headers = { 'Content-Type': 'application/json' };
+      if (user && !user.isLocal) {
+        const idToken = await user.getIdToken();
+        headers['Authorization'] = `Bearer ${idToken}`;
+      }
       await fetch('/api/clients', {
         method: 'POST',
-        headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${idToken}`
-        },
+        headers,
         body: JSON.stringify(clientObj)
       });
       setClients(prev => [clientObj, ...prev]);
@@ -147,13 +155,14 @@ const AppProvider = ({ children }) => {
 
   const saveSettings = async (newSettings) => {
     try {
-      const idToken = await user.getIdToken();
+      let headers = { 'Content-Type': 'application/json' };
+      if (user && !user.isLocal) {
+        const idToken = await user.getIdToken();
+        headers['Authorization'] = `Bearer ${idToken}`;
+      }
       await fetch('/api/settings', {
         method: 'PUT',
-        headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${idToken}`
-        },
+        headers,
         body: JSON.stringify(newSettings)
       });
       setSettings(prev => ({ ...prev, ...newSettings }));
@@ -837,13 +846,15 @@ const CreateInvoice = () => {
            const subject = `Invoice ${invoice.invoiceNo} from ${settings.companyName}`;
            const text = `Dear ${invoice.clientName || 'Client'},\n\nPlease find the details for invoice ${invoice.invoiceNo} attached as a PDF.\n\nTotal Amount: ₹${invoice.total.toFixed(2)}\nBalance Due: ₹${invoice.balanceDue.toFixed(2)}\nDue Date: ${invoice.dueDate}\n\nThank you for your business!\n\nBest regards,\n${settings.companyName}\n${settings.phone} | ${settings.email}`;
            
-           const idToken = await user.getIdToken();
+           let headers = { 'Content-Type': 'application/json' };
+           if (user && !user.isLocal) {
+             const idToken = await user.getIdToken();
+             headers['Authorization'] = `Bearer ${idToken}`;
+           }
+
            const res = await fetch('/api/send-email', {
                method: 'POST',
-               headers: { 
-                   'Content-Type': 'application/json',
-                   'Authorization': `Bearer ${idToken}`
-               },
+               headers,
                body: JSON.stringify({
                    to: invoice.clientEmail,
                    subject,
