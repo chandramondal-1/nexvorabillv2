@@ -95,7 +95,6 @@ app.get('/api/invoices', authenticate, async (req, res) => {
     try {
         const snapshot = await db.collection('invoices')
             .where('userId', '==', req.user.uid)
-            .orderBy('createdAt', 'desc')
             .get();
         const invoices = snapshot.docs.map(doc => ({ ...doc.data(), _id: doc.id }));
         res.json(invoices);
@@ -125,7 +124,6 @@ app.get('/api/clients', authenticate, async (req, res) => {
     try {
         const snapshot = await db.collection('clients')
             .where('userId', '==', req.user.uid)
-            .orderBy('createdAt', 'desc')
             .get();
         const clients = snapshot.docs.map(doc => ({ ...doc.data(), _id: doc.id }));
         res.json(clients);
@@ -144,6 +142,18 @@ app.post('/api/clients', authenticate, async (req, res) => {
         res.json({ success: true, client });
     } catch (e) {
         console.error("Firestore POST error:", e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/api/test-db', authenticate, async (req, res) => {
+    if(!db) return res.status(503).json({ error: 'Database not initialized' });
+    try {
+        const testRef = db.collection('_health_test').doc(req.user.uid);
+        await testRef.set({ lastPulse: new Date(), version: '2.0.1' });
+        const doc = await testRef.get();
+        res.json({ success: true, data: doc.data() });
+    } catch (e) {
         res.status(500).json({ error: e.message });
     }
 });

@@ -91,6 +91,16 @@ const AppProvider = ({ children }) => {
   const [authLoading, setAuthLoading] = useState(true);
   const [dbConnected, setDbConnected] = useState(true);
   const [serverStatus, setServerStatus] = useState('online');
+  const [cloudStats, setCloudStats] = useState({ invoices: 0, clients: 0 });
+
+  // --- SORTING UTILITIES ---
+  const sortedInvoices = useMemo(() => {
+    return [...invoices].sort((a, b) => new Date(b.invoiceDate) - new Date(a.invoiceDate));
+  }, [invoices]);
+
+  const sortedClients = useMemo(() => {
+    return [...clients].sort((a, b) => a.name.localeCompare(b.name));
+  }, [clients]);
 
   // --- RECOVERY BRIDGE ---
   // If the user logs in LATER (e.g. Firebase delay), we trigger a re-load from their specific local key
@@ -188,17 +198,38 @@ const AppProvider = ({ children }) => {
 
         if (invRes.ok) {
             const cloudInv = await invRes.json();
-            if (cloudInv && cloudInv.length > 0) {
-               console.log("CLOUD: Syncing invoices...");
-               setInvoices(cloudInv);
-            }
+            setCloudStats(prev => ({ ...prev, invoices: cloudInv.length }));
+            
+            // SMART MERGE: Union of Local and Cloud
+            setInvoices(prevLocal => {
+                const combined = [...prevLocal];
+                cloudInv.forEach(cInv => {
+                    const exists = combined.findIndex(l => String(l.id) === String(cInv.id));
+                    if (exists === -1) {
+                        combined.push(cInv);
+                    } else {
+                        combined[exists] = { ...combined[exists], ...cInv }; 
+                    }
+                });
+                return combined;
+            });
         }
         if (cliRes.ok) {
             const cloudCli = await cliRes.json();
-            if (cloudCli && cloudCli.length > 0) {
-               console.log("CLOUD: Syncing clients...");
-               setClients(cloudCli);
-            }
+            setCloudStats(prev => ({ ...prev, clients: cloudCli.length }));
+            
+            setClients(prevLocal => {
+                const combined = [...prevLocal];
+                cloudCli.forEach(cCli => {
+                    const exists = combined.findIndex(l => String(l.id) === String(cCli.id));
+                    if (exists === -1) {
+                        combined.push(cCli);
+                    } else {
+                        combined[exists] = { ...combined[exists], ...cCli };
+                    }
+                });
+                return combined;
+            });
         }
         if (setRes.ok) {
            const fetchedSettings = await setRes.json();
@@ -523,7 +554,7 @@ const Invoices = () => {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
 
-  const filteredInvoices = invoices.filter(inv => {
+  const filteredInvoices = sortedInvoices.filter(inv => {
     const matchesSearch = inv.clientName.toLowerCase().includes(search.toLowerCase()) || inv.invoiceNo.toLowerCase().includes(search.toLowerCase());
     const matchesFilter = filter === 'all' || inv.status.toLowerCase() === filter.toLowerCase();
     return matchesSearch && matchesFilter;
@@ -601,8 +632,30 @@ const Invoices = () => {
 // ==== VIEWS ====
 
 const Dashboard = () => {
-  const { invoices, clients } = useContext(AppContext);
+  const { invoices, clients, cloudStats, user, sortedInvoices } = useContext(AppContext);
+  const [testing, setTesting] = useState(false);
   
+  const handleTestDB = async () => {
+      setTesting(true);
+      try {
+          let headers = {};
+          if (user.token) {
+              headers['Authorization'] = `Bearer ${user.token}`;
+          } else if (typeof user.getIdToken === 'function') {
+              const idToken = await user.getIdToken();
+              headers['Authorization'] = `Bearer ${idToken}`;
+          }
+          const res = await fetch('/api/test-db', { headers });
+          const data = await res.json();
+          if (res.ok) alert("✅ Database Connection Success! Cloud is reachable.");
+          else alert("❌ Database Error: " + (data.error || "Unknown"));
+      } catch (e) {
+          alert("❌ Network Error: " + e.message);
+      } finally {
+          setTesting(false);
+      }
+  };
+
   const totalRevenue = invoices.filter(i => i.status === 'Paid').reduce((acc, curr) => acc + curr.total, 0);
   const pendingAmount = invoices.filter(i => i.status !== 'Paid').reduce((acc, curr) => acc + curr.balanceDue, 0);
   
@@ -675,7 +728,7 @@ const Dashboard = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {invoices.slice(0, 8).map(inv => (
+                    {sortedInvoices.slice(0, 8).map(inv => (
                       <tr key={inv.id}>
                         <td style={{ fontWeight: 600 }}>{inv.clientName}</td>
                         <td className="text-secondary">{inv.invoiceDate}</td>
@@ -713,10 +766,16 @@ const Dashboard = () => {
                   <div className="activity-item">
                       <div className="activity-dot" style={{ background: 'var(--warning)' }}></div>
                       <div>
-                          <p style={{ fontWeight: 600, fontSize: '0.9rem' }}>Local Backup Safe</p>
-                          <small className="text-secondary">Browser cache is up to date</small>
+                          <p style={{ fontWeight: 600, fontSize: '0.9rem' }}>Database Health</p>
+                          <small className="text-secondary">Cloud: {cloudStats.invoices} bills / Local: {invoices.length} bills</small>
                       </div>
                   </div>
+              </div>
+
+              <div className="flex-col gap-2" style={{ marginTop: '24px' }}>
+                  <Button variant="secondary" className="w-full" onClick={handleTestDB} disabled={testing}>
+                      {testing ? 'Checking...' : 'Run Connectivity Test'}
+                  </Button>
               </div>
 
               <div style={{ marginTop: '32px', padding: '20px', background: 'var(--sidebar-active)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
@@ -746,7 +805,7 @@ const Clients = () => {
     return invoices.filter(inv => inv.clientName === selectedClient.name);
   }, [selectedClient, invoices]);
 
-  const filteredClients = clients.filter(c => 
+  const filteredClients = sortedClients.filter(c => 
     c.name.toLowerCase().includes(search.toLowerCase()) || 
     c.business.toLowerCase().includes(search.toLowerCase())
   );
