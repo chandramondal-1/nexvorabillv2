@@ -244,7 +244,7 @@ const AppProvider = ({ children }) => {
       clients, setClients, saveClient,
       settings, setSettings, saveSettings,
       theme, toggleTheme, loading, authLoading,
-      user, login: (email, pass) => auth.signInWithEmailAndPassword(email, pass),
+      user, setUser, login: (email, pass) => auth.signInWithEmailAndPassword(email, pass),
       signup: (email, pass) => auth.createUserWithEmailAndPassword(email, pass),
       logout,
       exportData, exportCSV, generateMonthlyInvoices
@@ -280,7 +280,7 @@ const Button = ({ children, variant="primary", icon: Icon, onClick, className=""
 // ==== AUTHENTICATION PAGE ====
 
 const Login = () => {
-    const { login, signup, theme } = useContext(AppContext);
+    const { login, signup, theme, setUser } = useContext(AppContext);
     const [isLogin, setIsLogin] = useState(true);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
