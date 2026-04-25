@@ -5,9 +5,22 @@ const admin = require('firebase-admin');
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
-// Firebase Admin Disabled for now
-let db = null;
-console.log('Firebase Admin and Firestore are currently DISABLED on the server.');
+// Initialize Firebase Admin
+let db;
+if (process.env.FIREBASE_PROJECT_ID) {
+    admin.initializeApp({
+        credential: admin.credential.cert({
+            projectId: process.env.FIREBASE_PROJECT_ID,
+            clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+            privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+        }),
+        storageBucket: process.env.FIREBASE_STORAGE_BUCKET
+    });
+    db = admin.firestore();
+    console.log('Firebase Admin and Firestore initialized');
+} else {
+    console.warn('WARNING: Firebase credentials not set in .env. Authentication will be bypassed and data will NOT be saved permanently!');
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -24,10 +37,34 @@ app.use(express.static(path.join(__dirname, '../public')));
 
 // ================= MIDDLEWARE =================
 
-const authenticate = (req, res, next) => {
-    // Auth disabled - always use local admin
-    req.user = { email: 'admin@nexvora.local', uid: 'local-admin', displayName: 'Admin' };
-    next();
+const authenticate = async (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ error: 'Unauthorized: No token provided' });
+    }
+
+    const token = authHeader.split('Bearer ')[1];
+    
+    // 1. Try Firebase Auth first
+    if (process.env.FIREBASE_PROJECT_ID) {
+        try {
+            const decodedToken = await admin.auth().verifyIdToken(token);
+            req.user = decodedToken;
+            return next();
+        } catch (error) {
+            // If Firebase fails, we fall through to try JWT
+        }
+    }
+
+    // 2. Try JWT for Local Admin
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'nexvora_fallback_secret');
+        req.user = decoded;
+        next();
+    } catch (error) {
+        console.error('Authentication Error:', error.message);
+        res.status(401).json({ error: 'Unauthorized: Invalid token' });
+    }
 };
 
 // ================= API ROUTES =================
