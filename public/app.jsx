@@ -16,59 +16,25 @@ const INITIAL_SETTINGS = {
   signatureText: 'Arif Hussain and Surya Mondal\nFounder, Nexvora'
 };
 
-// --- Firebase Dynamic Initialization ---
-let auth;
-let storage;
+// --- Firebase/Auth Disabled ---
+let auth = {
+  onAuthStateChanged: (cb) => {
+    // Immediately trigger as logged in with a local admin
+    cb({ email: 'admin@nexvora.local', uid: 'local-admin', displayName: 'Admin' });
+    return () => {};
+  },
+  signInWithEmailAndPassword: () => Promise.resolve(),
+  signOut: () => {
+    localStorage.removeItem('nex_user');
+    window.location.reload();
+  },
+  getIdToken: () => Promise.resolve('mock-token')
+};
+let storage = null;
 
 const setupFirebase = async () => {
-  try {
-    const res = await fetch('/api/config');
-    const config = await res.json();
-    if (config.apiKey) {
-      if (!firebase.apps.length) {
-        firebase.initializeApp(config);
-      }
-      auth = firebase.auth();
-      storage = firebase.storage();
-      console.log("Firebase initialized dynamically from server config.");
-      return true;
-    }
-  } catch (e) {
-    console.warn("Failed to fetch Firebase config from server, using mocks.");
-  }
+  console.log("Firebase integration is currently disabled.");
   return false;
-};
-
-// Initial mock auth object (will be replaced if setupFirebase succeeds)
-auth = {
-  onAuthStateChanged: (cb) => {
-    let timeoutId;
-    const check = setInterval(() => {
-      if (firebase.apps.length && firebase.auth) {
-        auth = firebase.auth();
-        storage = firebase.storage();
-        auth.onAuthStateChanged(cb);
-        clearInterval(check);
-        clearTimeout(timeoutId);
-      }
-    }, 500);
-
-    // Fallback after 5 seconds if Firebase doesn't load
-    timeoutId = setTimeout(() => {
-      clearInterval(check);
-      console.warn("Firebase Auth initialization timed out. Using offline mode.");
-      cb(null); // Trigger callback with null user to allow app to proceed
-    }, 5000);
-
-    return () => {
-      clearInterval(check);
-      clearTimeout(timeoutId);
-    };
-  },
-  signInWithEmailAndPassword: () => Promise.reject(new Error("Firebase not configured. Please add API keys to Render.")),
-  createUserWithEmailAndPassword: () => Promise.reject(new Error("Firebase not configured. Please add API keys to Render.")),
-  signOut: () => Promise.resolve(),
-  getIdToken: () => Promise.resolve(null)
 };
 
 const AppProvider = ({ children }) => {
@@ -1610,7 +1576,8 @@ const App = () => {
     window.setActiveTab = (tab) => setCurrentView(tab);
   }, []);
 
-  if (!user) return <Login />;
+  // Login bypassed
+  // if (!user) return <Login />;
 
   return (
     <div className="app-container stagger-in">
