@@ -42,19 +42,31 @@ const setupFirebase = async () => {
 // Initial mock auth object (will be replaced if setupFirebase succeeds)
 auth = {
   onAuthStateChanged: (cb) => {
-    // Check if real auth is ready, else wait
+    let timeoutId;
     const check = setInterval(() => {
       if (firebase.apps.length && firebase.auth) {
         auth = firebase.auth();
         storage = firebase.storage();
         auth.onAuthStateChanged(cb);
         clearInterval(check);
+        clearTimeout(timeoutId);
       }
     }, 500);
-    return () => clearInterval(check);
+
+    // Fallback after 5 seconds if Firebase doesn't load
+    timeoutId = setTimeout(() => {
+      clearInterval(check);
+      console.warn("Firebase Auth initialization timed out. Using offline mode.");
+      cb(null); // Trigger callback with null user to allow app to proceed
+    }, 5000);
+
+    return () => {
+      clearInterval(check);
+      clearTimeout(timeoutId);
+    };
   },
-  signInWithEmailAndPassword: () => Promise.reject(new Error("Firebase not configured")),
-  createUserWithEmailAndPassword: () => Promise.reject(new Error("Firebase not configured")),
+  signInWithEmailAndPassword: () => Promise.reject(new Error("Firebase not configured. Please add API keys to Render.")),
+  createUserWithEmailAndPassword: () => Promise.reject(new Error("Firebase not configured. Please add API keys to Render.")),
   signOut: () => Promise.resolve(),
   getIdToken: () => Promise.resolve(null)
 };
