@@ -591,7 +591,7 @@ const Login = () => {
 };
 
 const Invoices = () => {
-  const { invoices } = useContext(AppContext);
+  const { sortedInvoices } = useContext(AppContext);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
 
@@ -830,7 +830,7 @@ const Dashboard = () => {
 };
 
 const Clients = () => {
-  const { clients, invoices, saveClient } = useContext(AppContext);
+  const { sortedClients, invoices, saveClient } = useContext(AppContext);
   const [newClient, setNewClient] = useState({ name: '', business: '', email: '', phone: '', address: '', isRecurring: false, recurringAmount: 500 });
   const [selectedClient, setSelectedClient] = useState(null);
   const [search, setSearch] = useState("");
