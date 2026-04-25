@@ -289,6 +289,60 @@ app.delete('/api/danger-wipe', async (req, res) => {
 });
 
 // Start the server
+// ----- Automation: Recurring Invoices -----
+app.post('/api/automation/monthly-invoices', authenticate, async (req, res) => {
+    if(!db) return res.status(503).json({ error: 'Database not configured.' });
+    
+    try {
+        const today = new Date();
+        const monthYear = `${today.getMonth() + 1}-${today.getFullYear()}`;
+        
+        // Check if we already ran for this month
+        const auditRef = db.collection('automation_audit').doc(monthYear);
+        const auditDoc = await auditRef.get();
+        if(auditDoc.exists && auditDoc.data().processed) {
+            return res.json({ success: true, message: 'Monthly invoices already generated for this period.', count: 0 });
+        }
+
+        // Get recurring clients
+        const snapshot = await db.collection('clients')
+            .where('userId', '==', req.user.uid)
+            .where('isRecurring', '==', true)
+            .get();
+        
+        const recurringClients = snapshot.docs.map(doc => doc.data());
+        let count = 0;
+
+        for (const client of recurringClients) {
+            const invoiceId = `AUTO-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+            const invoice = {
+                id: invoiceId,
+                invoiceNo: `INV-AUTO-${Math.floor(1000 + Math.random() * 9000)}`,
+                invoiceDate: today.toISOString().split('T')[0],
+                dueDate: new Date(today.setDate(today.getDate() + 7)).toISOString().split('T')[0],
+                status: 'Sent',
+                clientName: client.name,
+                clientEmail: client.email || '',
+                businessName: client.business || '',
+                userId: req.user.uid,
+                services: [{ desc: 'Monthly Subscription/Maintenance', qty: 1, rate: client.recurringAmount || 0, amount: client.recurringAmount || 0 }],
+                subtotal: client.recurringAmount || 0,
+                total: client.recurringAmount || 0,
+                balanceDue: client.recurringAmount || 0,
+                createdAt: new Date()
+            };
+            await db.collection('invoices').doc(invoiceId).set(invoice);
+            count++;
+        }
+
+        await auditRef.set({ processed: true, count, processedAt: new Date() });
+        res.json({ success: true, message: `Successfully automated ${count} invoices.`, count });
+    } catch (e) {
+        console.error("Automation Error:", e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });

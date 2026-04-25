@@ -265,6 +265,10 @@ const AppProvider = ({ children }) => {
             setSettings(prev => ({ ...prev, ...fetchedSettings }));
           }
         }
+        // Trigger monthly automation check
+        if (dbConnected) {
+          fetch('/api/automation/monthly-invoices', { method: 'POST', headers }).catch(() => {});
+        }
       } catch (e) {
         console.error("CLOUD: Fetch failed, staying with local data.", e);
       } finally {
@@ -272,7 +276,7 @@ const AppProvider = ({ children }) => {
       }
     };
     fetchData();
-  }, [user]);
+  }, [user, dbConnected]);
 
   useEffect(() => {
     document.body.className = theme;
