@@ -692,8 +692,8 @@ const Dashboard = () => {
     }
   };
 
-  const totalRevenue = invoices.filter(i => i.status === 'Paid').reduce((acc, curr) => acc + curr.total, 0);
-  const pendingAmount = invoices.filter(i => i.status !== 'Paid').reduce((acc, curr) => acc + curr.balanceDue, 0);
+  const totalRevenue = (invoices || []).filter(i => i.status === 'Paid').reduce((acc, curr) => acc + (Number(curr.total) || 0), 0);
+  const pendingAmount = (invoices || []).filter(i => i.status !== 'Paid').reduce((acc, curr) => acc + (Number(curr.balanceDue) || 0), 0);
 
   return (
     <div className="page-content">
@@ -768,7 +768,7 @@ const Dashboard = () => {
                     <tr key={inv.id}>
                       <td style={{ fontWeight: 600 }}>{inv.clientName}</td>
                       <td className="text-secondary">{inv.invoiceDate}</td>
-                      <td>₹{inv.total.toLocaleString()}</td>
+                      <td>₹{(Number(inv.total) || 0).toLocaleString()}</td>
                       <td>
                         <span className={`badge badge-${inv.status.toLowerCase()}`}>
                           {inv.status}
@@ -1657,11 +1657,11 @@ const App = () => {
 
           <div className="flex-row gap-4">
             <div className="flex-col text-right hide-mobile">
-              <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{user.email?.split('@')[0]}</div>
+              <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{user.email ? user.email.split('@')[0] : (user.username || 'User')}</div>
               <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Root Admin</div>
             </div>
             <div style={{ width: 44, height: 44, borderRadius: 14, background: 'var(--primary-color)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '1.2rem', boxShadow: 'var(--shadow-md)' }}>
-              {user.email?.charAt(0).toUpperCase()}
+              {(user.email || user.username || 'U').charAt(0).toUpperCase()}
             </div>
             <button className="btn-icon" onClick={toggleTheme}>
               <i data-lucide={theme === 'dark' ? 'sun' : 'moon'}></i>
