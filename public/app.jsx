@@ -210,6 +210,7 @@ const AppProvider = ({ children }) => {
       }
 
       try {
+        // First try fetching initial state from API (for speed)
         let headers = {};
         if (user.token) {
           headers['Authorization'] = `Bearer ${user.token}`;
@@ -219,40 +220,28 @@ const AppProvider = ({ children }) => {
         }
 
         const [invRes, cliRes, setRes] = await Promise.all([
-          fetch('/api/invoices', { headers }),
-          fetch('/api/clients', { headers }),
-          fetch('/api/settings', { headers })
+          fetch('/api/invoices', { headers }).catch(() => ({ ok: false })),
+          fetch('/api/clients', { headers }).catch(() => ({ ok: false })),
+          fetch('/api/settings', { headers }).catch(() => ({ ok: false }))
         ]);
 
         if (invRes.ok) {
           const cloudInv = await invRes.json();
+          setInvoices(cloudInv.sort((a, b) => b.id - a.id));
           setCloudStats(prev => ({ ...prev, invoices: cloudInv.length }));
-
-          // SMART MERGE: Union of Local and Cloud
-          setInvoices(prevLocal => {
-            const combined = [...prevLocal];
-            cloudInv.forEach(cInv => {
-              const exists = combined.findIndex(l => String(l.id) === String(cInv.id));
-              if (exists === -1) {
-                combined.push(cInv);
-              } else {
-                combined[exists] = { ...combined[exists], ...cInv };
-              }
-            });
-            return combined;
-          });
         }
         if (cliRes.ok) {
           const cloudCli = await cliRes.json();
+          setClients(cloudCli.sort((a, b) => b.id - a.id));
           setCloudStats(prev => ({ ...prev, clients: cloudCli.length }));
+        }
+        if (setRes.ok) {
+          const fetchedSettings = await setRes.json();
+          if (fetchedSettings && Object.keys(fetchedSettings).length > 0) {
+            setSettings(prev => ({ ...prev, ...fetchedSettings }));
+          }
+        }
 
-          setClients(prevLocal => {
-            const combined = [...prevLocal];
-            cloudCli.forEach(cCli => {
-              const exists = combined.findIndex(l => String(l.id) === String(cCli.id));
-              if (exists === -1) {
-                combined.push(cCli);
-              } else {
         // Real-time Listeners for "Full Cloud"
         if (dbConnected && window.firebase) {
           const db = window.firebase.firestore();
@@ -261,7 +250,7 @@ const AppProvider = ({ children }) => {
           db.collection('invoices').where('userId', '==', user.uid)
             .onSnapshot(snap => {
               const invs = snap.docs.map(doc => doc.data());
-              setInvoices(invs.sort((a,b) => b.id - a.id));
+              setInvoices(invs.sort((a, b) => b.id - a.id));
               setCloudStats(prev => ({ ...prev, invoices: invs.length }));
             });
 
@@ -269,7 +258,7 @@ const AppProvider = ({ children }) => {
           db.collection('clients').where('userId', '==', user.uid)
             .onSnapshot(snap => {
               const cls = snap.docs.map(doc => doc.data());
-              setClients(cls.sort((a,b) => b.id - a.id));
+              setClients(cls.sort((a, b) => b.id - a.id));
               setCloudStats(prev => ({ ...prev, clients: cls.length }));
             });
 
@@ -301,23 +290,6 @@ const AppProvider = ({ children }) => {
 
   const saveInvoice = async (invoiceObj) => {
     try {
-      let headers = { 'Content-Type': 'application/json' };
-      if (user) {
-        if (user.token) {
-          headers['Authorization'] = `Bearer ${user.token}`;
-        } else if (typeof user.getIdToken === 'function') {
-          const idToken = await user.getIdToken();
-          headers['Authorization'] = `Bearer ${idToken}`;
-        }
-      }
-      // Centralized auto-sync handles localStorage now
-      setInvoices(prev => {
-        const idx = prev.findIndex(inv => inv.id === invoiceObj.id);
-        const updated = idx >= 0 ? [...prev] : [invoiceObj, ...prev];
-        if (idx >= 0) updated[idx] = invoiceObj;
-        return updated;
-      });
-
       if (dbConnected && window.firebase) {
         const db = window.firebase.firestore();
         await db.collection('invoices').doc(String(invoiceObj.id)).set({
@@ -325,10 +297,10 @@ const AppProvider = ({ children }) => {
           userId: user.uid,
           updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
         }, { merge: true });
+        return true;
       } else {
         throw new Error('Cloud connection required for saving.');
       }
-      return true;
     } catch (e) {
       console.error("Cloud Save failed", e);
       alert("❌ Cloud Save Failed: " + e.message);
@@ -338,8 +310,6 @@ const AppProvider = ({ children }) => {
 
   const saveClient = async (clientObj) => {
     try {
-      setClients(prev => [clientObj, ...prev]);
-
       if (dbConnected && window.firebase) {
         const db = window.firebase.firestore();
         await db.collection('clients').doc(String(clientObj.id)).set({
@@ -347,18 +317,13 @@ const AppProvider = ({ children }) => {
           userId: user.uid,
           updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
         }, { merge: true });
+        return true;
       } else {
         throw new Error('Cloud connection required for saving.');
       }
-      return true;
     } catch (e) {
       console.error("Cloud Save failed", e);
       alert("❌ Cloud Save Failed: " + e.message);
-      return false;
-    }
-  };
-    } catch (e) {
-      console.error("Cloud Sync failed", e);
       return false;
     }
   };
