@@ -433,6 +433,7 @@ const AppProvider = ({ children }) => {
       theme, toggleTheme, loading, authLoading,
       user, setUser, dbConnected, serverStatus, cloudStats,
       signup: (email, pass) => auth.createUserWithEmailAndPassword(email, pass),
+      login: (email, pass) => auth.signInWithEmailAndPassword(email, pass),
       logout,
       sortedInvoices, sortedClients,
       exportData, exportCSV, generateMonthlyInvoices
