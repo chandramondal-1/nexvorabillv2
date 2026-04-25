@@ -1044,7 +1044,7 @@ const SettingsView = () => {
           <Card>
             <div className="flex-row justify-between mb-4">
               <h3>Email Service</h3>
-              <span className="badge badge-paid">SMTP V1.0</span>
+              <span className="badge badge-paid">SMTP V2.0</span>
             </div>
             <p className="text-secondary mb-4" style={{ fontSize: '0.85rem' }}>Verify your SMTP connection for automated invoice delivery.</p>
             <Button variant="secondary" className="w-full" onClick={async (e) => {

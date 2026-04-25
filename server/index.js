@@ -3,7 +3,7 @@ const cors = require('cors');
 const path = require('path');
 const admin = require('firebase-admin');
 const jwt = require('jsonwebtoken');
-require('dotenv').config({ path: path.join(__dirname, '.env') });
+require('dotenv').config();
 
 // Initialize Firebase Admin
 let db;

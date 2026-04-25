@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: nexvorabill
+    env: node
+    plan: free
+    region: singapore # You can change this to your preferred region
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: NODE_ENV
+        value: production
+      - key: ADMIN_USER
+        value: Chandra
+      - key: ADMIN_PASS
+        value: "123456789"
+      - key: JWT_SECRET
+        generateValue: true
+      # The following must be added manually in the Render dashboard for security:
+      # FIREBASE_PROJECT_ID
+      # FIREBASE_CLIENT_EMAIL
+      # FIREBASE_PRIVATE_KEY
+      # SMTP_USER
+      # SMTP_PASS
+      # SMTP_HOST
+      # SMTP_PORT
