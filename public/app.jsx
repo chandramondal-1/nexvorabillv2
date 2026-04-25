@@ -1592,6 +1592,7 @@ const CreateInvoice = () => {
 const App = () => {
   const [currentView, setCurrentView] = useState('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showWarning, setShowWarning] = useState(true);
   const { theme, toggleTheme, settings, user, logout, serverStatus } = useContext(AppContext);
 
   useEffect(() => {
@@ -1619,20 +1620,21 @@ const App = () => {
 
   return (
     <div className="app-container stagger-in">
-      {serverStatus !== 'online' && (
+      {(serverStatus !== 'online' && showWarning) && (
         <div className="warning-banner" style={{
           position: 'fixed', top: 0, left: 0, right: 0, zIndex: 10000,
-          background: serverStatus === 'unreachable' ? '#991b1b' : '#ef4444',
+          background: serverStatus === 'unreachable' ? '#991b1b' : '#3b82f6', // Use blue for non-critical config warning
           color: 'white', padding: '12px',
           textAlign: 'center', fontWeight: 'bold', fontSize: '0.85rem',
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
           boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
         }}>
-          <i data-lucide={serverStatus === 'unreachable' ? 'server-off' : 'shield-alert'} style={{ width: 16 }}></i>
+          <i data-lucide={serverStatus === 'unreachable' ? 'server-off' : 'info'} style={{ width: 16 }}></i>
           {serverStatus === 'unreachable'
             ? "CRITICAL: SERVER IS CURRENTLY DOWN. Data is safe in browser only."
-            : "CLOUD DISCONNECTED: Please configure Firebase in Render."
+            : "LOCAL MODE: Cloud sync is disabled. Add Firebase keys in Render to enable."
           }
+          <button onClick={() => setShowWarning(false)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', padding: '2px 8px', borderRadius: '4px', cursor: 'pointer', marginLeft: '10px', fontSize: '0.7rem' }}>Dismiss</button>
         </div>
       )}
 
