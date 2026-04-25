@@ -431,6 +431,14 @@ const AppProvider = ({ children }) => {
     alert(`Successfully generated ${added} monthly invoices!`);
   };
 
+  const logout = () => {
+    if (auth && typeof auth.signOut === 'function') {
+      auth.signOut();
+    }
+    localStorage.removeItem('nex_user');
+    setUser(null);
+  };
+
   return (
     <AppContext.Provider value={{
       invoices, setInvoices, saveInvoice, getNextInvoiceNo,
@@ -1548,11 +1556,12 @@ const CreateInvoice = () => {
 const App = () => {
   const [currentView, setCurrentView] = useState('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { theme, toggleTheme, settings, user, logout, dbConnected } = useContext(AppContext);
+  const { theme, toggleTheme, settings, user, logout, serverStatus } = useContext(AppContext);
 
-  // Initialize Lucide icons on view change
   useEffect(() => {
-    lucide.createIcons();
+    if (window.lucide) {
+      window.lucide.createIcons();
+    }
   }, [currentView, theme]);
 
   const renderView = () => {
@@ -1566,95 +1575,94 @@ const App = () => {
     }
   };
 
-  // Attach to global for cross-component routing
   useEffect(() => {
-    window.setActiveTab = (tab) => setCurrentView(tab)    return (
-      <div className="app-container stagger-in">
-        {serverStatus !== 'online' && (
-          <div className="warning-banner" style={{
-            position: 'fixed', top: 0, left: 0, right: 0, zIndex: 10000,
-            background: serverStatus === 'unreachable' ? '#991b1b' : '#ef4444',
-            color: 'white', padding: '12px',
-            textAlign: 'center', fontWeight: 'bold', fontSize: '0.85rem',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
-          }}>
-            <i data-lucide={serverStatus === 'unreachable' ? 'server-off' : 'shield-alert'} style={{ width: 16 }}></i>
-            {serverStatus === 'unreachable'
-              ? "CRITICAL: SERVER IS CURRENTLY DOWN. Data is safe in browser only."
-              : "CLOUD DISCONNECTED: Please configure Firebase in Render."
-            }
+    window.setActiveTab = (tab) => setCurrentView(tab);
+  }, []);
+
+  if (!user) return <Login />;
+
+  return (
+    <div className="app-container stagger-in">
+      {serverStatus !== 'online' && (
+        <div className="warning-banner" style={{
+          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 10000,
+          background: serverStatus === 'unreachable' ? '#991b1b' : '#ef4444',
+          color: 'white', padding: '12px',
+          textAlign: 'center', fontWeight: 'bold', fontSize: '0.85rem',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+        }}>
+          <i data-lucide={serverStatus === 'unreachable' ? 'server-off' : 'shield-alert'} style={{ width: 16 }}></i>
+          {serverStatus === 'unreachable'
+            ? "CRITICAL: SERVER IS CURRENTLY DOWN. Data is safe in browser only."
+            : "CLOUD DISCONNECTED: Please configure Firebase in Render."
+          }
+        </div>
+      )}
+
+      <aside className={`sidebar ${mobileMenuOpen ? 'open' : ''}`}>
+        <div className="sidebar-header">
+          <div className="sidebar-logo-text">
+            <i data-lucide="zap"></i>
+            <span>NEXVORA</span>
           </div>
-        )}
+          <p style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', letterSpacing: '2px', marginTop: '4px', opacity: 0.6 }}>ENTERPRISE SUITE</p>
+        </div>
 
-        <aside className={`sidebar ${mobileMenuOpen ? 'open' : ''}`}>
-          <div className="sidebar-header">
-            <div className="sidebar-logo-text">
-              <i data-lucide="zap"></i>
-              <span>NEXVORA</span>
+        <nav className="nav-links">
+          <div className={`nav-item ${currentView === 'dashboard' ? 'active' : ''}`} onClick={() => { setCurrentView('dashboard'); setMobileMenuOpen(false); }}>
+            <i data-lucide="layout-dashboard"></i> <span>Dashboard</span>
+          </div>
+          <div className={`nav-item ${currentView === 'invoices' ? 'active' : ''}`} onClick={() => { setCurrentView('invoices'); setMobileMenuOpen(false); }}>
+            <i data-lucide="file-text"></i> <span>Invoice Hub</span>
+          </div>
+          <div className={`nav-item ${currentView === 'create' ? 'active' : ''}`} onClick={() => { setCurrentView('create'); setMobileMenuOpen(false); }}>
+            <i data-lucide="plus-circle"></i> <span>Draft New</span>
+          </div>
+          <div className={`nav-item ${currentView === 'clients' ? 'active' : ''}`} onClick={() => { setCurrentView('clients'); setMobileMenuOpen(false); }}>
+            <i data-lucide="users"></i> <span>Clients</span>
+          </div>
+        </nav>
+
+        <div style={{ padding: '24px', borderTop: '1px solid var(--border-color)' }}>
+          <div className={`nav-item ${currentView === 'settings' ? 'active' : ''}`} onClick={() => { setCurrentView('settings'); setMobileMenuOpen(false); }}>
+            <i data-lucide="settings"></i> <span>Settings</span>
+          </div>
+          <div className="nav-item text-danger" onClick={logout}>
+            <i data-lucide="log-out"></i> <span>Sign Out</span>
+          </div>
+        </div>
+      </aside>
+
+      <main className="main-content">
+        <header className="topbar">
+          <div className="flex-row gap-4" style={{ flex: 1 }}>
+            <div className="search-box hide-mobile" style={{ width: '400px' }}>
+              <i data-lucide="search" style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }}></i>
+              <input type="text" className="form-input" placeholder="Search Invoices, Clients, Services..." style={{ paddingLeft: '48px' }} />
             </div>
-            <p style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', letterSpacing: '2px', marginTop: '4px', opacity: 0.6 }}>ENTERPRISE SUITE</p>
           </div>
 
-          <nav className="nav-links">
-            <div className={`nav-item ${currentView === 'dashboard' ? 'active' : ''}`} onClick={() => { setCurrentView('dashboard'); setMobileMenuOpen(false); }}>
-              <i data-lucide="layout-dashboard"></i> <span>Dashboard</span>
+          <div className="flex-row gap-4">
+            <div className="flex-col text-right hide-mobile">
+              <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{user.email?.split('@')[0]}</div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Root Admin</div>
             </div>
-            <div className={`nav-item ${currentView === 'invoices' ? 'active' : ''}`} onClick={() => { setCurrentView('invoices'); setMobileMenuOpen(false); }}>
-              <i data-lucide="file-text"></i> <span>Invoice Hub</span>
+            <div style={{ width: 44, height: 44, borderRadius: 14, background: 'var(--primary-color)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '1.2rem', boxShadow: 'var(--shadow-md)' }}>
+              {user.email?.charAt(0).toUpperCase()}
             </div>
-            <div className={`nav-item ${currentView === 'create' ? 'active' : ''}`} onClick={() => { setCurrentView('create'); setMobileMenuOpen(false); }}>
-              <i data-lucide="plus-circle"></i> <span>Draft New</span>
-            </div>
-            <div className={`nav-item ${currentView === 'clients' ? 'active' : ''}`} onClick={() => { setCurrentView('clients'); setMobileMenuOpen(false); }}>
-              <i data-lucide="users"></i> <span>Clients</span>
-            </div>
-          </nav>
-
-          <div style={{ padding: '24px', borderTop: '1px solid var(--border-color)' }}>
-            <div className={`nav-item ${currentView === 'settings' ? 'active' : ''}`} onClick={() => { setCurrentView('settings'); setMobileMenuOpen(false); }}>
-              <i data-lucide="settings"></i> <span>Settings</span>
-            </div>
-            <div className="nav-item text-danger" onClick={logout}>
-              <i data-lucide="log-out"></i> <span>Sign Out</span>
-            </div>
+            <button className="btn-icon" onClick={toggleTheme}>
+              <i data-lucide={theme === 'dark' ? 'sun' : 'moon'}></i>
+            </button>
           </div>
-        </aside>
+        </header>
 
-        <main className="main-content">
-          <header className="topbar">
-            <div className="flex-row gap-4" style={{ flex: 1 }}>
-              <div className="search-box hide-mobile" style={{ width: '400px' }}>
-                <i data-lucide="search" style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }}></i>
-                <input type="text" className="form-input" placeholder="Search Invoices, Clients, Services..." style={{ paddingLeft: '48px' }} />
-              </div>
-            </div>
-
-            <div className="flex-row gap-4">
-              <div className="flex-col text-right hide-mobile">
-                <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{user.email?.split('@')[0]}</div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Root Admin</div>
-              </div>
-              <div style={{ width: 44, height: 44, borderRadius: 14, background: 'var(--primary-color)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '1.2rem', boxShadow: 'var(--shadow-md)' }}>
-                {user.email?.charAt(0).toUpperCase()}
-              </div>
-              <button className="btn-icon" onClick={toggleTheme}>
-                <i data-lucide={theme === 'dark' ? 'sun' : 'moon'}></i>
-              </button>
-            </div>
-          </header>
-
-          <div key={currentView}>
-            {renderView()}
-          </div>
-        </main>
-      </div>
-    );
-  };
-  { renderView() }
-            </main >
-        </div >
-    );
+        <div key={currentView}>
+          {renderView()}
+        </div>
+      </main>
+    </div>
+  );
 };
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
