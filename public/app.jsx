@@ -1682,6 +1682,10 @@ const App = () => {
           </div>
 
           <div className="flex-row gap-4">
+            <div className={`cloud-pulse ${serverStatus === 'online' ? 'active' : ''}`} title={serverStatus === 'online' ? 'Firestore Cloud Synced' : 'Offline Mode'}>
+              <div className="pulse-dot"></div>
+              <span className="hide-mobile">{serverStatus === 'online' ? 'Cloud Live' : 'Local Only'}</span>
+            </div>
             <div className="flex-col text-right hide-mobile">
               <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{user.email ? user.email.split('@')[0] : (user.username || 'User')}</div>
               <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Root Admin</div>

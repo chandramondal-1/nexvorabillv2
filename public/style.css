@@ -380,9 +380,41 @@ tr:hover td {
 }
 
 /* Responsive Overrides */
-@media (max-width: 1024px) {
-  .app-container { padding: 0; gap: 0; }
-  .sidebar { border-radius: 0; height: 100vh; position: fixed; left: -280px; }
-  .sidebar.open { left: 0; }
-  .main-content { border-radius: 0; border: none; }
+/* --- CLOUD PULSE INDICATOR --- */
+.cloud-pulse {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface-color);
+  padding: 8px 16px;
+  border-radius: 20px;
+  border: 1px solid var(--border-color);
+  font-size: 0.8rem;
+  font-weight: 600;
+  transition: 0.3s;
+}
+
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-secondary);
+  position: relative;
+}
+
+.cloud-pulse.active .pulse-dot {
+  background: var(--success);
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+.cloud-pulse.active {
+  border-color: var(--success);
+  color: var(--success);
 }
