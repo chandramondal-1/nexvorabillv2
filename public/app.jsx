@@ -426,6 +426,7 @@ const AppProvider = ({ children }) => {
       user, setUser, dbConnected, serverStatus, login: (email, pass) => auth.signInWithEmailAndPassword(email, pass),
       signup: (email, pass) => auth.createUserWithEmailAndPassword(email, pass),
       logout,
+      sortedInvoices, sortedClients,
       exportData, exportCSV, generateMonthlyInvoices
     }}>
       {authLoading ? <div className="loading-screen">Verifying session...</div> : (loading ? <div style={{ padding: '50px', textAlign: 'center' }}>Loading data...</div> : children)}
