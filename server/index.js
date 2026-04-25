@@ -3,6 +3,7 @@ const cors = require('cors');
 const path = require('path');
 const admin = require('firebase-admin');
 const jwt = require('jsonwebtoken');
+const fs = require('fs');
 require('dotenv').config();
 
 // Initialize Firebase Admin
@@ -339,6 +340,34 @@ app.post('/api/automation/monthly-invoices', authenticate, async (req, res) => {
         res.json({ success: true, message: `Successfully automated ${count} invoices.`, count });
     } catch (e) {
         console.error("Automation Error:", e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// ----- Config Setup (Local Only) -----
+app.post('/api/setup-config', (req, res) => {
+    // Security: Only allow this on localhost
+    const isLocal = req.hostname === 'localhost' || req.hostname === '127.0.0.1';
+    if (!isLocal) {
+        return res.status(403).json({ error: 'Config setup only allowed on Localhost for security.' });
+    }
+
+    const { config } = req.body;
+    if (!config) return res.status(400).json({ error: 'No config provided' });
+
+    try {
+        let envContent = '';
+        for (const [key, value] of Object.entries(config)) {
+            // Handle private key multiline
+            const val = key === 'FIREBASE_PRIVATE_KEY' && !value.includes('\\n') 
+                ? value.replace(/\n/g, '\\n') 
+                : value;
+            envContent += `${key}=${val}\n`;
+        }
+
+        fs.writeFileSync(path.join(__dirname, '.env'), envContent);
+        res.json({ success: true, message: 'Configuration saved to .env. Please restart the server.' });
+    } catch (e) {
         res.status(500).json({ error: e.message });
     }
 });

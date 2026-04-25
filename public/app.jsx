@@ -1079,11 +1079,54 @@ const SettingsView = () => {
     }
   };
 
+  const [setupConfig, setSetupConfig] = useState({
+    FIREBASE_PROJECT_ID: '',
+    FIREBASE_CLIENT_EMAIL: '',
+    FIREBASE_PRIVATE_KEY: '',
+    FIREBASE_API_KEY: '',
+    FIREBASE_AUTH_DOMAIN: '',
+    FIREBASE_APP_ID: ''
+  });
+
+  const handleCloudSetup = async () => {
+    try {
+      const res = await fetch('/api/setup-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ config: setupConfig })
+      });
+      const data = await res.json();
+      if (res.ok) alert("✅ Cloud Keys Saved! PLEASE RESTART YOUR TERMINAL (or Render) to activate the cloud.");
+      else alert("❌ Error: " + data.error);
+    } catch (e) {
+      alert("❌ Setup failed: " + e.message);
+    }
+  };
+
   return (
     <div className="page-content">
-      <h1 style={{ fontWeight: 800, marginBottom: '32px' }}>Settings</h1>
+      <h1 style={{ fontWeight: 800, marginBottom: '8px' }}>Settings</h1>
+      <p className="text-secondary mb-8">Manage your company identity and cloud configuration.</p>
 
-      <div className="settings-grid">
+      {serverStatus !== 'online' && (
+        <Card style={{ border: '1px solid var(--primary-color)', background: 'var(--sidebar-active)', marginBottom: '32px' }}>
+          <div className="flex-row justify-between mb-4">
+            <h3 style={{ color: 'var(--primary-color)' }}>☁️ Cloud Setup Wizard</h3>
+            <span className="badge badge-pending">Local Mode Active</span>
+          </div>
+          <p className="mb-6" style={{ fontSize: '0.9rem' }}>Enter your Firebase keys here to enable <strong>Automatic Cloud Backup</strong> and <strong>Cross-Device Sync</strong>.</p>
+          <div className="form-grid-3 mb-6">
+            <Input label="Project ID" value={setupConfig.FIREBASE_PROJECT_ID} onChange={e => setSetupConfig({ ...setupConfig, FIREBASE_PROJECT_ID: e.target.value })} />
+            <Input label="Client Email" value={setupConfig.FIREBASE_CLIENT_EMAIL} onChange={e => setSetupConfig({ ...setupConfig, FIREBASE_CLIENT_EMAIL: e.target.value })} />
+            <Input label="API Key" value={setupConfig.FIREBASE_API_KEY} onChange={e => setSetupConfig({ ...setupConfig, FIREBASE_API_KEY: e.target.value })} />
+          </div>
+          <Input label="Private Key" type="textarea" placeholder="-----BEGIN PRIVATE KEY-----..." value={setupConfig.FIREBASE_PRIVATE_KEY} onChange={e => setSetupConfig({ ...setupConfig, FIREBASE_PRIVATE_KEY: e.target.value })} />
+          <div className="flex-row gap-4 mt-6">
+            <Button variant="primary" onClick={handleCloudSetup}>Save & Activate Cloud</Button>
+            <Button variant="secondary" onClick={() => window.open('https://console.firebase.google.com/', '_blank')}>Get Keys from Firebase Console</Button>
+          </div>
+        </Card>
+      )}
         <Card>
           <h3 className="mb-6">Company Identity</h3>
           <div className="flex-col gap-4">
