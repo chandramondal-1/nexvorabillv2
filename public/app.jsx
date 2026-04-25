@@ -1576,8 +1576,8 @@ const App = () => {
     window.setActiveTab = (tab) => setCurrentView(tab);
   }, []);
 
-  // Login bypassed
-  // if (!user) return <Login />;
+  // Ensure user is defined before rendering (handles local initialization delay)
+  if (!user) return <div className="loading-screen">Initializing Workspace...</div>;
 
   return (
     <div className="app-container stagger-in">
