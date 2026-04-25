@@ -786,10 +786,10 @@ const Dashboard = () => {
           <h3 className="mb-6">System Status</h3>
           <div className="flex-col gap-4">
             <div className="activity-item">
-              <div className="activity-dot"></div>
+              <div className="activity-dot" style={{ background: storage ? 'var(--success)' : 'var(--danger)' }}></div>
               <div>
-                <p style={{ fontWeight: 600, fontSize: '0.9rem' }}>Cloud Storage Connected</p>
-                <small className="text-secondary">Real-time persistence enabled</small>
+                <p style={{ fontWeight: 600, fontSize: '0.9rem' }}>Firebase Cloud Storage</p>
+                <small className="text-secondary">{storage ? 'Connected & Ready for Uploads' : 'Not Configured in Render'}</small>
               </div>
             </div>
             <div className="activity-item">
@@ -1008,26 +1008,29 @@ const SettingsView = () => {
   const [wipePass, setWipePass] = useState("");
   const [isWiping, setIsWiping] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingSignature, setUploadingSignature] = useState(false);
 
-  const handleLogoUpload = async (e) => {
+  const handleFileUpload = async (e, type, settingsKey) => {
     const file = e.target.files[0];
     if (!file) return;
     if (!storage) return alert("Firebase Storage not configured. Check Render environment variables.");
     
-    setUploadingLogo(true);
+    const loadingStateSetter = type === 'logo' ? setUploadingLogo : setUploadingSignature;
+    loadingStateSetter(true);
+    
     try {
       const storageRef = storage.ref();
-      const fileName = `logos/${user.uid || 'public'}_${Date.now()}_${file.name}`;
-      const logoRef = storageRef.child(fileName);
-      await logoRef.put(file);
-      const url = await logoRef.getDownloadURL();
-      saveSettings({ ...settings, logoUrl: url });
-      alert("Logo uploaded successfully!");
+      const fileName = `${type}s/${user.uid || 'public'}_${Date.now()}_${file.name}`;
+      const fileRef = storageRef.child(fileName);
+      await fileRef.put(file);
+      const url = await fileRef.getDownloadURL();
+      saveSettings({ ...settings, [settingsKey]: url });
+      alert(`${type.charAt(0).toUpperCase() + type.slice(1)} uploaded successfully!`);
     } catch (err) {
-      console.error("Upload error:", err);
-      alert("Upload failed: " + err.message);
+      console.error(`${type} upload error:`, err);
+      alert(`${type} upload failed: ${err.message}`);
     } finally {
-      setUploadingLogo(false);
+      loadingStateSetter(false);
     }
   };
 
@@ -1095,7 +1098,7 @@ const SettingsView = () => {
                 ) : (
                   <div style={{ width: 64, height: 64, borderRadius: '4px', border: '1px dashed var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', color: 'var(--text-secondary)', textAlign: 'center' }}>No Logo</div>
                 )}
-                <input type="file" accept="image/*" onChange={handleLogoUpload} style={{ display: 'none' }} id="logo-upload" disabled={uploadingLogo} />
+                <input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, 'logo', 'logoUrl')} style={{ display: 'none' }} id="logo-upload" disabled={uploadingLogo} />
                 <label htmlFor="logo-upload" className="btn btn-secondary" style={{ cursor: 'pointer', margin: 0 }}>
                   {uploadingLogo ? 'Uploading...' : (settings.logoUrl ? 'Change Logo' : 'Upload Logo')}
                 </label>
@@ -1110,6 +1113,22 @@ const SettingsView = () => {
             <div className="flex-col gap-4">
               <Input label="Default GST Percentage (%)" type="number" value={settings.gstPercent} onChange={e => handleSettingsChange('gstPercent', Number(e.target.value))} />
               <Input label="Professional Signature Text" type="textarea" value={settings.signatureText} onChange={e => handleSettingsChange('signatureText', e.target.value)} />
+              
+              <div className="form-group">
+                <label className="form-label">Digital Signature Image (Optional)</label>
+                <div className="flex-row gap-4 align-center" style={{ alignItems: 'center' }}>
+                  {settings.signatureUrl ? (
+                    <img src={settings.signatureUrl} style={{ width: 120, height: 60, objectFit: 'contain', borderRadius: '4px', border: '1px solid var(--border-color)', background: '#fff' }} />
+                  ) : (
+                    <div style={{ width: 120, height: 60, borderRadius: '4px', border: '1px dashed var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', color: 'var(--text-secondary)', textAlign: 'center' }}>No Signature Image</div>
+                  )}
+                  <input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, 'signature', 'signatureUrl')} style={{ display: 'none' }} id="sig-upload" disabled={uploadingSignature} />
+                  <label htmlFor="sig-upload" className="btn btn-secondary" style={{ cursor: 'pointer', margin: 0 }}>
+                    {uploadingSignature ? 'Uploading...' : (settings.signatureUrl ? 'Change' : 'Upload')}
+                  </label>
+                </div>
+              </div>
+
               <Input label="Standard Terms & Conditions" type="textarea" value={settings.terms} onChange={e => handleSettingsChange('terms', e.target.value)} />
             </div>
           </Card>
