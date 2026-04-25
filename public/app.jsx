@@ -210,38 +210,77 @@ const AppProvider = ({ children }) => {
       }
 
       try {
-        // DIRECT FIRESTORE FETCH (Bypass Backend Middleman)
-        if (dbConnected && firebase.firestore) {
-          const fdb = firebase.firestore();
-          
-          // Fetch Invoices
-          const invSnap = await fdb.collection('invoices').where('userId', '==', user.uid).get();
-          const cloudInvoices = invSnap.docs.map(doc => doc.data());
-          if (cloudInvoices.length > 0) setInvoices(cloudInvoices);
-
-          // Fetch Clients
-          const cliSnap = await fdb.collection('clients').where('userId', '==', user.uid).get();
-          const cloudClients = cliSnap.docs.map(doc => doc.data());
-          if (cloudClients.length > 0) setClients(cloudClients);
-
-          // Fetch Settings
-          const settSnap = await fdb.collection('settings').doc(user.uid).get();
-          if (settSnap.exists) setSettings(prev => ({ ...prev, ...settSnap.data() }));
+        let headers = {};
+        if (user.token) {
+          headers['Authorization'] = `Bearer ${user.token}`;
+        } else if (typeof user.getIdToken === 'function') {
+          const idToken = await user.getIdToken();
+          headers['Authorization'] = `Bearer ${idToken}`;
         }
 
-        // Trigger monthly automation check (Still needs backend for high-priv operations)
-        if (dbConnected) {
-          let headers = {};
-          if (user.token) {
-            headers['Authorization'] = `Bearer ${user.token}`;
-          } else if (typeof user.getIdToken === 'function') {
-            const idToken = await user.getIdToken();
-            headers['Authorization'] = `Bearer ${idToken}`;
-          }
-          fetch('/api/automation/monthly-invoices', { method: 'POST', headers }).catch(() => {});
+        const [invRes, cliRes, setRes] = await Promise.all([
+          fetch('/api/invoices', { headers }),
+          fetch('/api/clients', { headers }),
+          fetch('/api/settings', { headers })
+        ]);
+
+        if (invRes.ok) {
+          const cloudInv = await invRes.json();
+          setCloudStats(prev => ({ ...prev, invoices: cloudInv.length }));
+
+          // SMART MERGE: Union of Local and Cloud
+          setInvoices(prevLocal => {
+            const combined = [...prevLocal];
+            cloudInv.forEach(cInv => {
+              const exists = combined.findIndex(l => String(l.id) === String(cInv.id));
+              if (exists === -1) {
+                combined.push(cInv);
+              } else {
+                combined[exists] = { ...combined[exists], ...cInv };
+              }
+            });
+            return combined;
+          });
+        }
+        if (cliRes.ok) {
+          const cloudCli = await cliRes.json();
+          setCloudStats(prev => ({ ...prev, clients: cloudCli.length }));
+
+          setClients(prevLocal => {
+            const combined = [...prevLocal];
+            cloudCli.forEach(cCli => {
+              const exists = combined.findIndex(l => String(l.id) === String(cCli.id));
+              if (exists === -1) {
+                combined.push(cCli);
+              } else {
+        // Real-time Listeners for "Full Cloud"
+        if (dbConnected && window.firebase) {
+          const db = window.firebase.firestore();
+          
+          // Listen for Invoices
+          db.collection('invoices').where('userId', '==', user.uid)
+            .onSnapshot(snap => {
+              const invs = snap.docs.map(doc => doc.data());
+              setInvoices(invs.sort((a,b) => b.id - a.id));
+              setCloudStats(prev => ({ ...prev, invoices: invs.length }));
+            });
+
+          // Listen for Clients
+          db.collection('clients').where('userId', '==', user.uid)
+            .onSnapshot(snap => {
+              const cls = snap.docs.map(doc => doc.data());
+              setClients(cls.sort((a,b) => b.id - a.id));
+              setCloudStats(prev => ({ ...prev, clients: cls.length }));
+            });
+
+          // Listen for Settings
+          db.collection('settings').doc(user.uid)
+            .onSnapshot(doc => {
+              if (doc.exists) setSettings(prev => ({ ...prev, ...doc.data() }));
+            });
         }
       } catch (e) {
-        console.error("CLOUD: Direct Firestore fetch failed.", e);
+        console.error("CLOUD: Connection failed.", e);
       } finally {
         setLoading(false);
       }
@@ -262,7 +301,16 @@ const AppProvider = ({ children }) => {
 
   const saveInvoice = async (invoiceObj) => {
     try {
-      // Local State Update
+      let headers = { 'Content-Type': 'application/json' };
+      if (user) {
+        if (user.token) {
+          headers['Authorization'] = `Bearer ${user.token}`;
+        } else if (typeof user.getIdToken === 'function') {
+          const idToken = await user.getIdToken();
+          headers['Authorization'] = `Bearer ${idToken}`;
+        }
+      }
+      // Centralized auto-sync handles localStorage now
       setInvoices(prev => {
         const idx = prev.findIndex(inv => inv.id === invoiceObj.id);
         const updated = idx >= 0 ? [...prev] : [invoiceObj, ...prev];
@@ -270,18 +318,20 @@ const AppProvider = ({ children }) => {
         return updated;
       });
 
-      // DIRECT CLOUD SYNC (Bypass Backend)
-      if (dbConnected && firebase.firestore) {
-        const fdb = firebase.firestore();
-        await fdb.collection('invoices').doc(String(invoiceObj.id)).set({
+      if (dbConnected && window.firebase) {
+        const db = window.firebase.firestore();
+        await db.collection('invoices').doc(String(invoiceObj.id)).set({
           ...invoiceObj,
           userId: user.uid,
-          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+          updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
         }, { merge: true });
+      } else {
+        throw new Error('Cloud connection required for saving.');
       }
       return true;
     } catch (e) {
-      console.error("Direct Cloud Sync failed", e);
+      console.error("Cloud Save failed", e);
+      alert("❌ Cloud Save Failed: " + e.message);
       return false;
     }
   };
@@ -290,38 +340,56 @@ const AppProvider = ({ children }) => {
     try {
       setClients(prev => [clientObj, ...prev]);
 
-      // DIRECT CLOUD SYNC (Bypass Backend)
-      if (dbConnected && firebase.firestore) {
-        const fdb = firebase.firestore();
-        await fdb.collection('clients').doc(String(clientObj.id)).set({
+      if (dbConnected && window.firebase) {
+        const db = window.firebase.firestore();
+        await db.collection('clients').doc(String(clientObj.id)).set({
           ...clientObj,
           userId: user.uid,
-          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+          updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
         }, { merge: true });
+      } else {
+        throw new Error('Cloud connection required for saving.');
       }
       return true;
     } catch (e) {
-      console.error("Direct Client Cloud Sync failed", e);
+      console.error("Cloud Save failed", e);
+      alert("❌ Cloud Save Failed: " + e.message);
+      return false;
+    }
+  };
+    } catch (e) {
+      console.error("Cloud Sync failed", e);
       return false;
     }
   };
 
   const saveSettings = async (newSettings) => {
     try {
-      const updated = { ...settings, ...newSettings };
-      setSettings(updated);
-
-      // DIRECT CLOUD SYNC
-      if (dbConnected && firebase.firestore) {
-        await firebase.firestore().collection('settings').doc(user.uid).set({
-          ...updated,
-          userId: user.uid,
-          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });
+      let headers = { 'Content-Type': 'application/json' };
+      if (user) {
+        if (user.token) {
+          headers['Authorization'] = `Bearer ${user.token}`;
+        } else if (typeof user.getIdToken === 'function') {
+          const idToken = await user.getIdToken();
+          headers['Authorization'] = `Bearer ${idToken}`;
+        }
       }
+      const res = await fetch('/api/settings', {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(newSettings)
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to save settings to cloud');
+      }
+
+      setSettings(prev => ({ ...prev, ...newSettings }));
       return true;
     } catch (e) {
-      console.error("Direct Settings Sync failed", e);
+      console.error("Error saving settings", e);
+      alert("⚠️ CLOUD SAVE FAILED: " + e.message);
       return false;
     }
   };
