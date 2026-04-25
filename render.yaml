@@ -3,7 +3,7 @@ services:
     name: nexvorabill
     env: node
     plan: free
-    region: singapore # You can change this to your preferred region
+    region: singapore
     buildCommand: npm install
     startCommand: npm start
     envVars:
@@ -17,11 +17,30 @@ services:
         value: "123456789"
       - key: JWT_SECRET
         generateValue: true
-      # The following must be added manually in the Render dashboard for security:
-      # FIREBASE_PROJECT_ID
-      # FIREBASE_CLIENT_EMAIL
-      # FIREBASE_PRIVATE_KEY
-      # SMTP_USER
-      # SMTP_PASS
-      # SMTP_HOST
-      # SMTP_PORT
+      # Firebase Admin (Backend)
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: FIREBASE_CLIENT_EMAIL
+        sync: false
+      - key: FIREBASE_PRIVATE_KEY
+        sync: false
+      # Firebase Client (Frontend) - Served via /api/config
+      - key: FIREBASE_API_KEY
+        sync: false
+      - key: FIREBASE_AUTH_DOMAIN
+        sync: false
+      - key: FIREBASE_STORAGE_BUCKET
+        sync: false
+      - key: FIREBASE_APP_ID
+        sync: false
+      - key: FIREBASE_MESSAGING_SENDER_ID
+        sync: false
+      # SMTP
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_HOST
+        value: "smtp.gmail.com"
+      - key: SMTP_PORT
+        value: "587"

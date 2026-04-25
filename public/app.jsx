@@ -16,33 +16,48 @@ const INITIAL_SETTINGS = {
   signatureText: 'Arif Hussain and Surya Mondal\nFounder, Nexvora'
 };
 
-// --- Firebase Configuration ---
-// REPLACE THESE WITH YOUR ACTUAL FIREBASE CONFIG
-const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_AUTH_DOMAIN",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_STORAGE_BUCKET",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+// --- Firebase Dynamic Initialization ---
+let auth;
+let storage;
+
+const setupFirebase = async () => {
+  try {
+    const res = await fetch('/api/config');
+    const config = await res.json();
+    if (config.apiKey) {
+      if (!firebase.apps.length) {
+        firebase.initializeApp(config);
+      }
+      auth = firebase.auth();
+      storage = firebase.storage();
+      console.log("Firebase initialized dynamically from server config.");
+      return true;
+    }
+  } catch (e) {
+    console.warn("Failed to fetch Firebase config from server, using mocks.");
+  }
+  return false;
 };
 
-// Initialize Firebase only if config is valid
-let auth;
-if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY") {
-  if (!firebase.apps.length) {
-    firebase.initializeApp(firebaseConfig);
-  }
-  auth = firebase.auth();
-} else {
-  // Mock auth object to prevent errors when Firebase is not set up
-  auth = {
-    onAuthStateChanged: (cb) => { cb(null); return () => { }; },
-    signInWithEmailAndPassword: () => Promise.reject(new Error("Firebase not configured")),
-    createUserWithEmailAndPassword: () => Promise.reject(new Error("Firebase not configured")),
-    signOut: () => Promise.resolve()
-  };
-}
+// Initial mock auth object (will be replaced if setupFirebase succeeds)
+auth = {
+  onAuthStateChanged: (cb) => {
+    // Check if real auth is ready, else wait
+    const check = setInterval(() => {
+      if (firebase.apps.length && firebase.auth) {
+        auth = firebase.auth();
+        storage = firebase.storage();
+        auth.onAuthStateChanged(cb);
+        clearInterval(check);
+      }
+    }, 500);
+    return () => clearInterval(check);
+  },
+  signInWithEmailAndPassword: () => Promise.reject(new Error("Firebase not configured")),
+  createUserWithEmailAndPassword: () => Promise.reject(new Error("Firebase not configured")),
+  signOut: () => Promise.resolve(),
+  getIdToken: () => Promise.resolve(null)
+};
 
 const AppProvider = ({ children }) => {
   // --- CRITICAL INDEPENDENT INITIALIZATION ---
@@ -157,6 +172,7 @@ const AppProvider = ({ children }) => {
 
   // Load from API on mount
   useEffect(() => {
+    setupFirebase();
     const checkHealth = async () => {
       try {
         const hRes = await fetch('/api/health');
@@ -971,6 +987,29 @@ const SettingsView = () => {
   const { settings, saveSettings, user } = useContext(AppContext);
   const [wipePass, setWipePass] = useState("");
   const [isWiping, setIsWiping] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+
+  const handleLogoUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (!storage) return alert("Firebase Storage not configured. Check Render environment variables.");
+    
+    setUploadingLogo(true);
+    try {
+      const storageRef = storage.ref();
+      const fileName = `logos/${user.uid || 'public'}_${Date.now()}_${file.name}`;
+      const logoRef = storageRef.child(fileName);
+      await logoRef.put(file);
+      const url = await logoRef.getDownloadURL();
+      saveSettings({ ...settings, logoUrl: url });
+      alert("Logo uploaded successfully!");
+    } catch (err) {
+      console.error("Upload error:", err);
+      alert("Upload failed: " + err.message);
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
 
   const handleSettingsChange = (field, val) => {
     saveSettings({ [field]: val });
@@ -1028,6 +1067,20 @@ const SettingsView = () => {
               <Input label="Public Email" value={settings.email} onChange={e => handleSettingsChange('email', e.target.value)} />
             </div>
             <Input label="Website URL" value={settings.website} onChange={e => handleSettingsChange('website', e.target.value)} />
+            <div className="form-group">
+              <label className="form-label">Company Logo</label>
+              <div className="flex-row gap-4 align-center" style={{ alignItems: 'center' }}>
+                {settings.logoUrl ? (
+                  <img src={settings.logoUrl} style={{ width: 64, height: 64, objectFit: 'contain', borderRadius: '4px', border: '1px solid var(--border-color)', background: '#fff' }} />
+                ) : (
+                  <div style={{ width: 64, height: 64, borderRadius: '4px', border: '1px dashed var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', color: 'var(--text-secondary)', textAlign: 'center' }}>No Logo</div>
+                )}
+                <input type="file" accept="image/*" onChange={handleLogoUpload} style={{ display: 'none' }} id="logo-upload" disabled={uploadingLogo} />
+                <label htmlFor="logo-upload" className="btn btn-secondary" style={{ cursor: 'pointer', margin: 0 }}>
+                  {uploadingLogo ? 'Uploading...' : (settings.logoUrl ? 'Change Logo' : 'Upload Logo')}
+                </label>
+              </div>
+            </div>
           </div>
         </Card>
 
