@@ -97,6 +97,7 @@ body::before {
   height: 100vh;
   padding: 16px;
   gap: 16px;
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* --- FLOATING SIDEBAR --- */
@@ -380,6 +381,72 @@ tr:hover td {
 }
 
 /* Responsive Overrides */
+@media (max-width: 1024px) {
+  .app-container { padding: 0; gap: 0; }
+  .sidebar { 
+    border-radius: 0; 
+    height: 100vh; 
+    position: fixed; 
+    left: -280px; 
+    box-shadow: 20px 0 50px rgba(0,0,0,0.2);
+  }
+  .sidebar.open { left: 0; }
+  .main-content { border-radius: 0; border: none; height: 100vh; }
+  .hide-mobile { display: none !important; }
+  .topbar { padding: 0 20px; height: 70px; }
+  .page-content { padding: 20px; }
+}
+
+@media (max-width: 768px) {
+  .grid-cards { grid-template-columns: 1fr !important; }
+  .form-grid-2, .form-grid-3 { grid-template-columns: 1fr !important; }
+  .settings-grid { grid-template-columns: 1fr !important; }
+  .login-box { width: 90%; padding: 30px 20px; }
+  .btn { width: 100%; justify-content: center; }
+  h1 { font-size: 1.8rem !important; }
+  .table-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  table { min-width: 600px; }
+  
+  /* Mobile Bottom Navigation Mockup or Floating Button */
+  .mobile-menu-toggle {
+    display: flex !important;
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    color: white;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 10px 30px var(--primary-glow);
+    z-index: 1000;
+  }
+}
+
+/* Glassmorphism Refinements */
+.card, .sidebar, .topbar {
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+}
+
+/* Smooth Scrolling */
+.main-content {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-secondary); }
+
+/* Additional Micro-interactions */
+.nav-item i, .btn i {
+  transition: transform 0.3s ease;
+}
 /* --- CLOUD PULSE INDICATOR --- */
 .cloud-pulse {
   display: flex;

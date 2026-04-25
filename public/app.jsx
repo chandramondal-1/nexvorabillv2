@@ -1675,6 +1675,9 @@ const App = () => {
       <main className="main-content">
         <header className="topbar">
           <div className="flex-row gap-4" style={{ flex: 1 }}>
+            <button className="btn-icon mobile-menu-toggle" style={{ display: 'none' }} onClick={() => setMobileMenuOpen(true)}>
+              <i data-lucide="menu"></i>
+            </button>
             <div className="search-box hide-mobile" style={{ width: '400px' }}>
               <i data-lucide="search" style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }}></i>
               <input type="text" className="form-input" placeholder="Search Invoices, Clients, Services..." style={{ paddingLeft: '48px' }} />
